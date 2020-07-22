@@ -1,0 +1,9 @@
+- hosts: all
+  become: true
+  roles:
+  - role: cadvisor
+    tags: cadvisor
+  - role: node-exporter
+    tags: node-exporter
+  - role: grafana
+    tags: grafana

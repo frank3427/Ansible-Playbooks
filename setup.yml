@@ -1,0 +1,9 @@
+- hosts: all
+  become: true
+  roles:
+  - role: package
+    tags: package
+  - role: iam
+    tags: iam
+  - role: update
+    tags: update,never

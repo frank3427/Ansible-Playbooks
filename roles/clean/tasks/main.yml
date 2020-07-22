@@ -1,0 +1,29 @@
+- name: Include cleanup tasks
+  include_tasks: "{{ item }}.yml"
+  when: item in tasks
+  loop: "{{ ansible_run_tags }}"
+  vars:
+    tasks:
+      - nginx
+      - modsecurity
+      - keycloak
+      - kibana
+      - moodle
+      - odoo
+      - nextcloud
+      - collabora-code
+      - bookstack
+      - logstash
+      - metricbeat
+      - cadvisor
+      - node-exporter
+      - prometheus
+      - grafana
+      - fathom
+      - elasticsearch
+      - openldap
+      - mysql
+      - postgres
+      - docker-network
+      - odoo-scripts
+      - wordpress

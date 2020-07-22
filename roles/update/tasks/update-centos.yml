@@ -1,0 +1,40 @@
+- name: Update yum cache
+  yum:
+    update_cache: yes
+
+# - name: Count package updates
+#   shell: yum list updates | wc -l
+#   args:
+#     warn: false
+#   register: upgradeable_package_count
+
+# - name: Show upgradeable package count
+#   debug:
+#     msg: "{{ upgradeable_package_count.stdout }} packages will be updated."
+
+- name: Upgrade all packages # noqa 403
+  yum:
+    name: "*"
+    state: latest
+
+- name: Check if reboot is required
+  stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+
+- name: Reboot system if required
+  reboot:
+    msg: Rebooting to complete system upgrade
+    reboot_timeout: 120
+  when: reboot_required.stat.exists
+
+- name: Get all installed and updated packages # noqa 306
+  shell: rpm -qa --last | grep "$(date +%a\ %b\ %d)" | cut -f 1 -d " "
+  args:
+    warn: false
+  register: installed_updated_packages
+  changed_when: false
+
+- name: Show installed and updated packages
+  debug:
+    msg: "{{ installed_updated_packages.stdout_lines }}"

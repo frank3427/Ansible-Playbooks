@@ -1,0 +1,1 @@
+scrape_configs: {{ prometheus_scrape_configs }}

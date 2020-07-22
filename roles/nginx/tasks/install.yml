@@ -1,0 +1,116 @@
+- name: Ensure nginx data dir exists
+  file:
+    path: "{{ nginx_data_dir }}"
+    state: directory
+
+- name: Dig DNS CNAME record
+  debug:
+    msg: "{{ lookup('dig', item.src_hostname, 'qtype=CNAME') }}"
+  register: dig
+  loop: "{{ nginx_proxies }}"
+
+- name: Fail if DNS record points to alias.zeit.co.
+  fail:
+    msg: DNS record points to default alias.
+  when: item.msg == 'alias.zeit.co.'
+  loop: "{{ dig.results }}"
+
+- name: Fail if DNS record points to cname.vercel-dns.com.
+  fail:
+    msg: DNS record points to default alias.
+  when: item.msg == 'cname.vercel-dns.com.'
+  loop: "{{ dig.results }}"
+
+- name: Include install certbot tasks
+  include_tasks: install-certbot.yml
+  when: certbot_image is defined
+
+- name: Copy nginx conf
+  template:
+    src: templates/nginx-proxy.conf
+    dest: "{{ nginx_data_dir }}/{{ item.src_hostname }}.conf"
+  vars:
+    src_hostname: "{{ item.src_hostname }}"
+    dest_hostname: "{{ item.dest_hostname | default('') }}"
+    dest_port: "{{ item.dest_port | default('')  }}"
+    options: "{{ item.options | default('') }}"
+    redirect_hostname: "{{ item.redirect_hostname | default(false) }}"
+    ssl: "{{ item.ssl | default(false) }}"
+    locations: "{{ item.locations | default(false) }}"
+    server_names: "{{ item.server_names | default(false) }}"
+  loop: "{{ nginx_proxies }}"
+  notify: Restart nginx container
+
+- name: Register nginx conf files
+  shell: "ls -1 {{ nginx_data_dir }}/*.conf"
+  changed_when: no
+  register: nginx_proxy_conf_files
+
+- name: Create managed file list from proxy list
+  set_fact:
+    managed_files: "{{ nginx_proxies | map(attribute='src_hostname') | map('regex_replace', '^(.*)$', '\\1.conf') | list }}"
+
+- name: Remove unmanaged nginx conf files
+  file:
+    path: "{{ nginx_data_dir }}/{{ item }}"
+    state: "absent"
+  loop: "{{ nginx_proxy_conf_files.stdout_lines }}"
+  when: item not in managed_files
+
+- name: Copy nginx ssl param conf
+  copy:
+    src: "{{ item }}"
+    dest: "{{ certbot_data_dir }}/"
+  loop:
+    - files/options-ssl-nginx.conf
+    - files/ssl-dhparams.pem
+    - files/proxy-params.conf
+
+- name: "Start nginx container {{ nginx_hostname }} without modsecurity"
+  docker_container:
+    name: "{{ nginx_hostname }}"
+    labels:
+      description: "{{ nginx_description }}"
+    image: "{{ nginx_image }}"
+    restart_policy: unless-stopped
+    recreate: no
+    ports:
+      - "{{ nginx_http_port }}:{{ nginx_http_port }}"
+      - "{{ nginx_https_port }}:{{ nginx_https_port }}"
+    volumes:
+      - "{{ nginx_data_dir }}/:/etc/nginx/conf.d/:ro"
+      - "{{ certbot_data_dir }}/:/etc/letsencrypt/"
+      - "{{ certbot_data_dir }}/www/:/var/www/certbot/"
+    networks:
+      - name: "{{ docker_network_name }}"
+    log_driver: "{{ docker_log_driver }}"
+    log_options:
+      max-size: "{{ docker_log_max_size }}"
+      max-file: "{{ docker_log_max_file }}"
+  when: modsecurity_image is undefined
+
+- name: "Start nginx container {{ nginx_hostname }} with modsecurity"
+  docker_container:
+    name: "{{ nginx_hostname }}"
+    labels:
+      description: "{{ nginx_description }}"
+    image: "{{ modsecurity_image }}"
+    restart_policy: unless-stopped
+    recreate: no
+    ports:
+      - "{{ nginx_http_port }}:{{ nginx_http_port }}"
+      - "{{ nginx_https_port }}:{{ nginx_https_port }}"
+    volumes:
+      - "{{ nginx_data_dir }}/:/etc/nginx/conf.d/:ro"
+      - "{{ certbot_data_dir }}/:/etc/letsencrypt/"
+      - "{{ certbot_data_dir }}/www/:/var/www/certbot/"
+      - "{{ modsecurity_data_dir }}:/etc/modsecurity"
+      - "{{ modsecurity_data_dir }}/include.conf:/etc/modsecurity.d/include.conf"
+      - "{{ modsecurity_data_dir }}/modsecurity.conf:/etc/modsecurity.d/modsecurity.conf"
+    networks:
+      - name: "{{ docker_network_name }}"
+    log_driver: "{{ docker_log_driver }}"
+    log_options:
+      max-size: "{{ docker_log_max_size }}"
+      max-file: "{{ docker_log_max_file }}"
+  when: modsecurity_image is defined

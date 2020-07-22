@@ -1,0 +1,18 @@
+- name: Cloning oh-my-zsh for user
+  git:
+    repo: https://github.com/ohmyzsh/ohmyzsh
+    dest: ~/.oh-my-zsh
+    version: master
+  become_user: "{{ item.username }}"
+  become: true
+  when: item.shell == '/bin/zsh' and inventory_hostname_short in item.hosts
+  loop: "{{ iam_users }}"
+
+- name: Install oh-my-zsh for user"
+  command: cp ~/.oh-my-zsh/templates/zshrc.zsh-template ~/.zshrc
+  args:
+    creates: "/home/{{ item.username }}/.zshrc"
+  become_user: "{{ item.username }}"
+  become: true
+  when: item.shell == '/bin/zsh' and inventory_hostname_short in item.hosts
+  loop: "{{ iam_users }}"

@@ -1,0 +1,7 @@
+- name: Include Ubuntu update tasks
+  include_tasks: update-ubuntu.yml
+  when: update and ansible_distribution == 'Ubuntu'
+
+- name: Include CentOS update tasks
+  include_tasks: update-centos.yml
+  when: update and ansible_distribution == 'CentOS'

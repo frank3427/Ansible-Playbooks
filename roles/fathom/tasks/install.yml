@@ -1,0 +1,19 @@
+- name: Create fathom volume
+  docker_volume:
+    name: "{{ fathom_volume_name }}"
+
+- name: "Start fathom container {{ fathom_hostname }}"
+  docker_container:
+    name: "{{ fathom_hostname }}"
+    labels:
+      description: "{{ fathom_description }}"
+    image: "{{ fathom_image }}"
+    restart_policy: unless-stopped
+    volumes:
+      - "{{ fathom_volume_name }}:/app"
+    networks:
+      - name: "{{ docker_network_name }}"
+    log_driver: "{{ docker_log_driver }}"
+    log_options:
+      max-size: "{{ docker_log_max_size }}"
+      max-file: "{{ docker_log_max_file }}"
